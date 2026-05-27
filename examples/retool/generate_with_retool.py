@@ -379,6 +379,23 @@ async def generate(args, sample: Sample, sampling_params) -> Sample:
     sample.response = response
     sample.loss_mask = loss_masks
 
+    total_len = len(sample.tokens)
+    loss_sum = sum(loss_masks)
+    try:
+        import wandb
+        if wandb.run is not None:
+            wandb.log({
+                "sample_len/total": total_len,
+                "sample_len/prompt": len(prompt_tokens_ids),
+                "sample_len/response": len(response_token_ids),
+                "sample_len/loss_sum": loss_sum,
+                "sample_len/turns": tool_call_count,
+                "sample_len/status": sample.status.value,
+                "sample_len/at_cap": int(total_len >= max_context_length - 4),
+            })
+    except ImportError:
+        pass
+
     # Store payload information for wandb logging
     sample.payload_text = prompt + response
     sample.payload_has_system = "<|im_start|>system" in prompt + response

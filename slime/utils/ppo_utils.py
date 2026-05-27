@@ -664,6 +664,19 @@ def calculate_log_probs_and_entropy(logits, tokens, tp_group, with_entropy: bool
 
             log_probs = []
             for tokens_chunk, logits_chunk in zip(tokens_chunks, logits_chunks, strict=True):
+                # DEBUG: print logits/tokens shape and estimated clone size before
+                # the .clone() that can OOM under large microbatches.
+                try:
+                    _est_gb = logits_chunk.numel() * logits_chunk.element_size() / 1e9
+                    _alloc_gb = torch.cuda.memory_allocated() / 1e9
+                    print(
+                        f"[logprob_shape chunk] logits={tuple(logits_chunk.shape)} "
+                        f"dtype={logits_chunk.dtype} tokens={tuple(tokens_chunk.shape)} "
+                        f"clone_est={_est_gb:.2f}G alloc_now={_alloc_gb:.2f}G",
+                        flush=True,
+                    )
+                except Exception as _e:  # noqa: BLE001
+                    print(f"[logprob_shape chunk] debug print failed: {_e}", flush=True)
                 log_prob = compute_log_probs(logits_chunk.clone(), tokens_chunk, tp_group)
                 log_probs.append(log_prob)
             log_prob = torch.cat(log_probs, dim=0)
@@ -672,6 +685,19 @@ def calculate_log_probs_and_entropy(logits, tokens, tp_group, with_entropy: bool
                 entropy_input = logits.clone()
                 entropy = compute_entropy_from_logits(entropy_input, tp_group)
 
+            # DEBUG: print logits/tokens shape and estimated clone size before
+            # the .clone() that can OOM under large microbatches.
+            try:
+                _est_gb = logits.numel() * logits.element_size() / 1e9
+                _alloc_gb = torch.cuda.memory_allocated() / 1e9
+                print(
+                    f"[logprob_shape full] logits={tuple(logits.shape)} "
+                    f"dtype={logits.dtype} tokens={tuple(tokens.shape)} "
+                    f"clone_est={_est_gb:.2f}G alloc_now={_alloc_gb:.2f}G",
+                    flush=True,
+                )
+            except Exception as _e:  # noqa: BLE001
+                print(f"[logprob_shape full] debug print failed: {_e}", flush=True)
             log_prob = compute_log_probs(logits.clone(), tokens, tp_group)
     else:
         log_prob = logits.new_zeros((0,))

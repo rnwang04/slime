@@ -283,6 +283,24 @@ class MegatronTrainRayActor(TrainRayActor):
             rollout_data["rollout_routed_experts"] = [
                 torch.from_numpy(r) for r in rollout_data["rollout_routed_experts"]
             ]
+
+        # DEBUG: dump total_length distribution to spot oversize samples that
+        # would exceed --max-tokens-per-gpu and trigger logits.clone OOM.
+        try:
+            tls = rollout_data.get("total_lengths", None)
+            if tls is not None and len(tls) > 0 and is_megatron_main_rank():
+                cap = self.args.context_parallel_size * self.args.max_tokens_per_gpu
+                sorted_tls = sorted(tls)
+                p99 = sorted_tls[int(0.99 * (len(sorted_tls) - 1))]
+                over_cap = sum(1 for t in tls if t > cap)
+                print(
+                    f"[rollout_len] n={len(tls)} max={max(tls)} p99={p99} "
+                    f"sum={sum(tls)} cap={cap} over_cap={over_cap}",
+                    flush=True,
+                )
+        except Exception as _e:  # noqa: BLE001
+            print(f"[rollout_len] debug print failed: {_e}", flush=True)
+
         return rollout_data
 
     def _switch_model(self, target_tag: str) -> None:
@@ -375,6 +393,25 @@ class MegatronTrainRayActor(TrainRayActor):
         num_microbatches: list[int],
         store_prefix: str = "",
     ) -> dict[str, list[torch.Tensor]]:
+
+        # DEBUG: snapshot GPU memory at log_prob entry to localize OOMs.
+        try:
+            import os as _os
+            torch.cuda.synchronize()
+            _ms = torch.cuda.memory_stats()
+            _alloc = _ms.get("allocated_bytes.all.current", 0) / 1e9
+            _reserved = _ms.get("reserved_bytes.all.current", 0) / 1e9
+            _peak = _ms.get("allocated_bytes.all.peak", 0) / 1e9
+            _tag = (store_prefix or "actor_").rstrip("_")
+            print(
+                f"[logprob_mem pid={_os.getpid()} tag={_tag} "
+                f"nmb={sum(num_microbatches)}] alloc={_alloc:.1f}G "
+                f"reserved={_reserved:.1f}G peak={_peak:.1f}G",
+                flush=True,
+            )
+            torch.cuda.reset_peak_memory_stats()
+        except Exception as _e:  # noqa: BLE001
+            print(f"[logprob_mem] debug print failed: {_e}", flush=True)
 
         with timer(f"{store_prefix}log_probs"):
             return forward_only(
