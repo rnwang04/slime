@@ -141,8 +141,7 @@ RUNTIME_ENV_JSON="{
     \"PYTHONPATH\": \"/root/Megatron-LM/:${SCRIPT_DIR}:/root/slime\",
     \"CUDA_DEVICE_MAX_CONNECTIONS\": \"1\",
     \"NCCL_NVLS_ENABLE\": \"${HAS_NVLINK}\",
-    \"TENSORBOARD_DIR\": \"/inspire/qb-ilm/project/aisystem-and-infra/26008/slime-tensorbard/tb_logs/retool/qwen3-4b-retool\",
-    \"PYTORCH_CUDA_ALLOC_CONF\": \"expandable_segments:True\"
+    \"TENSORBOARD_DIR\": \"/inspire/qb-ilm/project/aisystem-and-infra/26008/slime-tensorbard/tb_logs/retool/qwen3-4b-retool\"
   }
 }"
 
